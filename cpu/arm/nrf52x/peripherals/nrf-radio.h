@@ -102,8 +102,8 @@ int nrf_radio_get_txpower(void);
 #define PACKET1_PAYLOAD_SIZE             (250UL)//!< maximum payload size in bytes
 
 #define HEADER_LEN (uint8_t)ceil(PACKET0_PAYLOAD_SIZE / 8)
-uint8_t tx_buffer[PACKET1_PAYLOAD_SIZE];  	///< tx buffer for packets
-uint8_t rx_buffer[PACKET1_PAYLOAD_SIZE];  	///< rx buffer for packets
+static uint8_t tx_buffer[PACKET1_PAYLOAD_SIZE];  	///< tx buffer for packets
+static uint8_t rx_buffer[PACKET1_PAYLOAD_SIZE];  	///< rx buffer for packets
 static uint8_t tx_ready;
 
 /*---------------------------------------------------------------------------*/

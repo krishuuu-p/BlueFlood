@@ -11,6 +11,7 @@
 #define CAU_TESTBED 7
 #define TABLE_TESTBED 8
 #define CTH_TESTBED 9
+#define DCUBE_TESTBED 10
 
 //minimal hello_world for extracting node IDs
 #define TEST_HELLO_WORLD (TESTBED==HELLOWORLD_TESTBED)
@@ -167,6 +168,62 @@ mote20,mote21,mote22,mote24\
 //#define TESTBED_PI_IDS (uint8_t[]){4,5,6,7,8,10,20,21,22,28}
 #define TESTBED_IDS (uint32_t[]){mote20,mote21,mote22,mote24}
 #define TESTBED_PI_IDS (uint8_t[]){20,21,22,24} 
+#define TESTBED_SIZE sizeof(TESTBED_PI_IDS)
+
+#elif TESTBED==DCUBE_TESTBED
+#define MY_ADV_ADDRESS_HI 0xA1A1U
+
+#define mote100 (0xf2de209eUL)
+#define mote101 (0x92dcf7d2UL)
+#define mote102 (0xbc490582UL)
+#define mote103 (0xab51cee7UL)
+#define mote104 (0x3ee55eabUL)
+#define mote105 (0x9daeea76UL)
+#define mote106 (0x0dbf423aUL)
+#define mote107 (0x515bdc2aUL)
+#define mote108 (0x167c7c75UL)
+#define mote109 (0xe6a5f30eUL)
+#define mote110 (0xdded6301UL)
+#define mote111 (0xa01ae253UL)
+#define mote112 (0x0a578336UL)
+#define mote113 (0x566c29d8UL)
+#define mote114 (0x58fc2226UL)
+#define mote115 (0xc6e11c58UL)
+#define mote116 (0x78ce6791UL)
+#define mote117 (0xd4f3c2f3UL)
+#define mote118 (0x3d8de8c4UL)
+#define mote119 (0x122611e5UL)
+#define mote200 (0xf111de36UL)
+#define mote201 (0x97d52940UL)
+#define mote202 (0x8bb27b6dUL)
+#define mote203 (0xbd95c7bbUL)
+#define mote204 (0x54b410fbUL)
+#define mote205 (0x4993dd66UL)
+#define mote206 (0x461994edUL)
+#define mote207 (0x4692c6b5UL)
+#define mote208 (0xc6238a40UL)
+#define mote209 (0xcf827d40UL)
+#define mote210 (0x0192e724UL)
+#define mote211 (0xcd0e34d4UL)
+#define mote212 (0x42bc13bbUL)
+#define mote213 (0x55c93b01UL)
+#define mote214 (0x1723391cUL)
+#define mote215 (0x60256590UL)
+#define mote216 (0x01717d05UL)
+#define mote217 (0x6391c2fbUL)
+#define mote218 (0x3a70e9aeUL)
+#define mote219 (0x80adfe3cUL)
+#define mote220 (0xccf7a663UL)
+#define mote221 (0x80d0b065UL)
+#define mote222 (0x506fcdaaUL)
+#define mote223 (0xcc49bcabUL)
+#define mote224 (0x72eef57aUL)
+#define mote225 (0x7424d2d8UL)
+#define mote226 (0x652725e7UL)
+#define mote227 (0x74729f06UL)
+
+#define TESTBED_IDS (uint32_t[]){mote100, mote101, mote102, mote103, mote104, mote105, mote106, mote107, mote108, mote109, mote110, mote111, mote112, mote113, mote114, mote115, mote116, mote117, mote118, mote119, mote200, mote201, mote202, mote203, mote204, mote205, mote206, mote207, mote208, mote209, mote210, mote211, mote212, mote213, mote214, mote215, mote216, mote217, mote218, mote219, mote220, mote221, mote222, mote223, mote224, mote225, mote226, mote227}
+#define TESTBED_PI_IDS (uint8_t[]){1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48}
 #define TESTBED_SIZE sizeof(TESTBED_PI_IDS)
 
 #elif TESTBED==HELLOWORLD_TESTBED
