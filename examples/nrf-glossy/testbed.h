@@ -172,6 +172,7 @@ mote20,mote21,mote22,mote24\
 
 #elif TESTBED==DCUBE_TESTBED
 #define MY_ADV_ADDRESS_HI 0xA1A1U
+#define TESTBED_DIAMETER (5)
 
 #define mote100 (0xf2de209eUL)
 #define mote101 (0x92dcf7d2UL)
@@ -223,7 +224,7 @@ mote20,mote21,mote22,mote24\
 #define mote227 (0x74729f06UL)
 
 #define TESTBED_IDS (uint32_t[]){mote100, mote101, mote102, mote103, mote104, mote105, mote106, mote107, mote108, mote109, mote110, mote111, mote112, mote113, mote114, mote115, mote116, mote117, mote118, mote119, mote200, mote201, mote202, mote203, mote204, mote205, mote206, mote207, mote208, mote209, mote210, mote211, mote212, mote213, mote214, mote215, mote216, mote217, mote218, mote219, mote220, mote221, mote222, mote223, mote224, mote225, mote226, mote227}
-#define TESTBED_PI_IDS (uint8_t[]){1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48}
+#define TESTBED_PI_IDS (uint8_t[]){100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227}
 #define TESTBED_SIZE sizeof(TESTBED_PI_IDS)
 
 #elif TESTBED==HELLOWORLD_TESTBED
