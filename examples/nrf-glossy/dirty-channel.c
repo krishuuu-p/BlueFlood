@@ -72,7 +72,13 @@ static ble_beacon_t msg;
 static ble_beacon_t msg_errors[ROUND_LEN];
 #endif /* PRINT_LAST_RX */
 static uint64_t corrupt_msg_index = 0;
+#define GLOSSY_ROUNDS 10
+
 static uint32_t my_id = 0;
+static uint8_t relay = 0, relay_min = UINT8_MAX, initiator_relay = 0;
+static uint8_t relay_list[GLOSSY_ROUNDS];
+static uint8_t list_itr = 0;
+static uint8_t average_relay = 0, level_calculated = 0;
 /*---------------------------------------------------------------------------*/
 PROCESS(tx_process, "TX process");
 AUTOSTART_PROCESSES(&tx_process);
@@ -88,6 +94,27 @@ static int get_testbed_index(uint32_t my_id, const uint32_t *testbed_ids, uint8_
         }
     }
     return -1;
+}
+/*---------------------------------------------------------------------------*/
+static void calculate_average_relay()
+{
+    int i, sum_level = 0;
+    for (i = 0; i < list_itr; i++)
+    {
+        sum_level = sum_level + relay_list[i];
+    }
+    int avg_relay;
+    avg_relay = (sum_level * 10) / list_itr;
+
+    if (avg_relay % 10 >= 5)
+    {
+        level_calculated = (avg_relay / 10) + 1;
+    }
+    else
+    {
+        level_calculated = (avg_relay / 10);
+    }
+    average_relay = avg_relay / 10;
 }
 /*---------------------------------------------------------------------------*/
 static void init_ibeacon_packet(ble_beacon_t *pkt, const uint8_t *uuid, uint16_t round, uint16_t slot)
@@ -106,6 +133,7 @@ static void init_ibeacon_packet(ble_beacon_t *pkt, const uint8_t *uuid, uint16_t
     // pkt->minor = 0;
     pkt->slot = slot;
     pkt->turn = MSG_TURN_NONE;
+    pkt->relay = 0;
 
 #if (PACKET_IBEACON_FORMAT)
     pkt->ad_flags_length = 2;  // 2bytes flags
@@ -272,6 +300,11 @@ PROCESS_THREAD(tx_process, ev, data)
         berr = 0;
         berr_per_pkt_max = 0, berr_per_byte_max = 0;
         corrupt_msg_index = 0;
+        relay = 0;
+        relay_min = UINT8_MAX;
+        if(IS_INITIATOR()) {
+            initiator_relay = 0;
+        }
 #if PRINT_TX_STATUS
         tx_status[0] = ':';
 #endif /* PRINT_TX_STATUS */
@@ -324,6 +357,7 @@ PROCESS_THREAD(tx_process, ev, data)
             {
                 msg.slot = slot;
                 msg.round = round;
+                msg.relay = relay;
                 joined = 1;
                 guard_time = GUARD_TIME_SHORT;
 #if 0 // TWO_NODES_EXPERIMENT
@@ -548,6 +582,16 @@ PROCESS_THREAD(tx_process, ev, data)
                         if (last_rx_ok)
                         {
                             memcpy(&msg, &my_rx_buffer, rx_pkt->radio_len + 1);
+                            if(IS_INITIATOR()) {
+                                // Initiator received its own packet back from the network
+                                relay = 0;  // Initiator's relay count is always 0
+                                relay_min = 0;
+                            } else {
+                                relay = rx_pkt->relay + 1;
+                                if(relay < relay_min) {
+                                    relay_min = relay;
+                                }
+                            }
                             if (!synced)
                             {
                                 guard_time = GUARD_TIME_SHORT;
@@ -694,7 +738,7 @@ PRINTF("bits per packet\n");*/
 
 #if TESTBED_LOG_STYLE
 #if PRINT_RX_STATS
-        PRINTF("{rx-%d} %u, %u, %u, %u, %lu, %lu, %u, %u, %u, %lu, %d\n", round, rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot);
+        PRINTF("{rx-%d} %u, %u, %u, %u, %lu, %lu, %u, %u, %u, %lu, %d, %u, %u, %u, %u\n", round, rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot, relay_min, initiator_relay, average_relay, level_calculated);
 #endif
 #if PRINT_RSSI
         PRINTF("{rssi-%d} ", round);
@@ -733,7 +777,7 @@ PRINTF("bits per packet\n");*/
 #endif /* PRINT_DEBUG_MSG */
 
 #else /* TESTBED_LOG_STYLE */
-        PRINTF("rx_ok %u, crc %u, none %u, tx %u: OK %lu of %lu, berr b%u p%u r%u %lu, sync %d\n", rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot);
+        PRINTF("rx_ok %u, crc %u, none %u, tx %u: OK %lu of %lu, berr b%u p%u r%u %lu, sync %d, relay_min %u, initiator_relay %u, avg_relay %u, level %u\n", rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot, relay_min, initiator_relay, average_relay, level_calculated);
 
 #if PRINT_RSSI
         PRINTF("Rssi: ");
@@ -821,6 +865,15 @@ PRINTF("bits per packet\n");*/
         {
             failed_rounds = 0;
             rx_ok = 0;
+            // Store relay_min for this round (only first GLOSSY_ROUNDS)
+            if (round < GLOSSY_ROUNDS) {
+                if (IS_INITIATOR()) {
+                    relay_list[list_itr++] = initiator_relay;
+                } else {
+                    relay_list[list_itr++] = relay_min;
+                }
+                calculate_average_relay();
+            }
         }
 
         round++;

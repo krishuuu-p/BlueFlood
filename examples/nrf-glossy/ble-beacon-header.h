@@ -61,6 +61,7 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
     };
   };
   uint8_t power;
+  uint8_t relay;
   #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
   union{
     uint16_t CRC_OR_RSSI_LQI;
@@ -96,6 +97,7 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
       uint8_t turn;
     };
   };
+  uint8_t relay;
   #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
   union{
     uint16_t CRC_OR_RSSI_LQI;

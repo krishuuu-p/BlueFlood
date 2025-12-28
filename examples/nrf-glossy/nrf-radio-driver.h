@@ -12,7 +12,7 @@
 #define PRINT_TS_DELTA_CONF true
 #define PRINT_RSSI_CONF true
 #define PRINT_LAST_RX_CONF false
-#define PRINT_RX_STATS_CONF false
+#define PRINT_RX_STATS_CONF true
 #define PRINT_NODE_CONFIG_CONF true
 #define PRINT_CUSTOM_DEBUG_MSG_CONF false
 #define PRINT_NODE_REJOIN_WARNING_CONF false
