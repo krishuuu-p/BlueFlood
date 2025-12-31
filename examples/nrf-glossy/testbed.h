@@ -173,6 +173,8 @@ mote20,mote21,mote22,mote24\
 #elif TESTBED==DCUBE_TESTBED
 #define MY_ADV_ADDRESS_HI 0xA1A1U
 #define TESTBED_DIAMETER (5)
+#define MINT_TESTBED_DIAMETER (4)
+#define NUM_NODES 48
 
 #define mote100 (0xf2de209eUL)
 #define mote101 (0x92dcf7d2UL)

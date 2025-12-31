@@ -1,5 +1,14 @@
 #ifndef BLE_BEACON_HEADER_H
 #define BLE_BEACON_HEADER_H
+//#define USER_DATA_LEN 1
+#define USER_DATA_LEN 8
+//#define USER_DATA_LEN 54
+
+//#define USER_DATA_LEN 3     //25 bytes
+//#define USER_DATA_LEN 18    //40 bytes
+//#define USER_DATA_LEN 28    //50 bytes
+//#define USER_DATA_LEN 38    //60 bytes
+
 
 #include "nrf-radio-driver.h"
 
@@ -53,6 +62,7 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
     uint16_t major;
     uint16_t round;
   };
+  uint8_t relay;
   union{
     uint16_t minor;
     struct{
@@ -61,7 +71,6 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
     };
   };
   uint8_t power;
-  uint8_t relay;
   #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
   union{
     uint16_t CRC_OR_RSSI_LQI;
@@ -90,6 +99,7 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
     uint16_t major;
     uint16_t round;
   };
+  uint8_t relay;
   union{
     uint16_t minor;
     struct{
@@ -97,7 +107,6 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
       uint8_t turn;
     };
   };
-  uint8_t relay;
   #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
   union{
     uint16_t CRC_OR_RSSI_LQI;
@@ -108,6 +117,91 @@ typedef struct __attribute__((packed)) ble_beacon_struct {
   }
   #endif
 } ble_beacon_t;
+#endif
+
+
+
+
+#if (PACKET_IBEACON_FORMAT)
+typedef struct __attribute__((packed)) mint_ble_beacon_struct {
+  #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
+  /** LEN field shall come first, but otherwise the packet does not follow standard 802.15.4 */
+  uint8_t radio_len; //LEN
+  //uint8_t pdu_header; //S0
+  #else
+  uint8_t pdu_header; //S0
+  uint8_t radio_len; //LEN
+  #endif
+
+/*   union {
+    struct {
+      //uint16_t rfu_2:2, pdu_length:6, rx_add:1, tx_add:1, rfu:2, pdu_type:4;
+      uint8_t rx_add:1, tx_add:1, rfu:2, pdu_type:4;
+    };
+    uint8_t pdu_header;
+  }; */
+//  uint32_t adv_address_low;
+//  uint16_t adv_address_hi;
+//  /* ibeacon */
+ // uint8_t ad_flags_length;
+//  uint8_t ad_flags_type;
+ // uint8_t ad_flags_data;
+//  uint8_t ad_length;
+//  uint8_t ad_type;
+//  uint16_t company_id;
+//  uint16_t beacon_type;
+  union{
+      uint16_t major;
+      uint16_t chain_cnt;
+    };
+//    union{
+//      uint16_t minor;
+//      uint16_t relay_cnt;
+//    };
+  uint8_t data[USER_DATA_LEN];
+ // uint8_t power;
+  #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
+  union{
+    uint16_t CRC_OR_RSSI_LQI;
+    struct{
+      uint8_t lqi;
+      uint8_t DUMMY;
+    }
+  }
+  #endif
+}mint_ble_beacon_t ;
+#else
+typedef struct __attribute__((packed)) mint_ble_beacon_struct {
+  #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
+  /** LEN field shall come first, but otherwise the packet does not follow standard 802.15.4 */
+  uint8_t radio_len; //LEN
+  uint8_t pdu_header; //S0
+  #else
+  uint8_t pdu_header; //S0
+  uint8_t radio_len; //LEN
+  #endif
+
+  uint32_t adv_address_low;
+  uint16_t adv_address_hi;
+  uint8_t data[USER_DATA_LEN];
+  union{
+    uint16_t major;
+    uint16_t chain_cnt;
+  };
+  union{
+    uint16_t minor;    
+    uint16_t relay_cnt;
+  };
+  #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
+  union{
+    uint16_t CRC_OR_RSSI_LQI;
+    struct{
+      uint8_t lqi;
+      uint8_t DUMMY;
+    }
+  }
+  #endif
+} mint_ble_beacon_t;
 #endif
 
 #endif /* BLE_BEACON_HEADER_H */

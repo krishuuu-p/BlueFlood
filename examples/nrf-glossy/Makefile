@@ -9,7 +9,7 @@ GRAZ_PASSWORD=$(shell cat graz_password.secret)
 GRAZ_TEST_PROTOCOL_DISSEMINATE=6654
 GRAZ_TEST_PROTOCOL_COLLECT=6653
 GRAZ_LAYOUT ?= 1
-log ?= true
+log ?= 1
 jamming ?= 0
 REPEAT ?= 1
 
@@ -76,7 +76,7 @@ TARGET=nrf52840dk
 endif
 
 CONTIKI_PROJECT = dirty-channel
-PROJECT_SOURCEFILES += crc24.c hamming-encoder-decoder.c nrf-radio-driver.c
+PROJECT_SOURCEFILES += crc24.c hamming-encoder-decoder.c nrf-radio-driver.c app.c
 
 CONTIKI_WITH_CHAOS = 0
 CONTIKI_WITH_IPV4 = 0
