@@ -6,6 +6,7 @@
 *.log
 *.elf
 *.zip
+*.env
 *.d
 *.ihex
 *.pyc
@@ -70,6 +71,7 @@ contiki-cc2530dk.lib
 *.banks
 *.sensinode
 *.cc2530dk
+*.nrf52840dk
 
 # VC++ build artifacts
 *.exp
