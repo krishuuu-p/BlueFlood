@@ -643,7 +643,7 @@ PROCESS_THREAD(tx_process, ev, data)
 		{
 			if (round < GLOSSY_ROUNDS)
 			{
-				printf("{rssi-%d}{relay-%d level-%2d}\n", round, relay_min, level_calculated);
+				printf("{round-%d}{relay-%d relay_min-%d level-%2d}\n", round, relay, relay_min, level_calculated);
 				if (IS_INITIATOR())
 				{
 					relay_list[list_itr++] = initiator_relay;
@@ -654,20 +654,21 @@ PROCESS_THREAD(tx_process, ev, data)
 				}
 				calculate_average_relay();
 			}
-			else if (round >= GLOSSY_ROUNDS && round < LEVEL_SHARING_ROUND)
+			else if (round == GLOSSY_ROUNDS)
 			{
-				printf("{rssi-%d}{relay-%d level-%2d}", round,relay_min,level_calculated);
-				printf("Calling app_new_start\n");
-				app_new_start(level_calculated, round);
-				//	app_new_start(1,round);
+				// My level is calculated now. Share my level and get levels of other nodes.
+				printf("Calculated level: %d\n", level_calculated);
+				printf("Starting level sharing..\n");
+				app_level_sharing(level_calculated, round);
+				//	app_level_sharing(1,round);
 			}
 			else
 			{
 
-				printf("{rssi-%d}{relay-%d level-%2d}", round,relay_min,level_calculated);
-				printf("Calling app_new_start_opt\n");
+				printf("{round-%d}{level-%2d}", round, level_calculated);
+				printf("Calling app_new_opt_start\n");
 				app_new_opt_start(level_calculated, round); // For chain length reduction
-															// app_new_start(level_calculated,round);      // Only MultiCast
+															// app_level_sharing(level_calculated,round);      // Only MultiCast
 				// print_app_states()
 			}
 			failed_rounds = 0;
@@ -687,11 +688,11 @@ PROCESS_THREAD(tx_process, ev, data)
 
 #if TESTBED_LOG_STYLE
 #if PRINT_RX_STATS
-		PRINTF("{rx-%d} %u, %u, %u, %u, %lu, %lu, %u, %u, %u, %lu, %d\n", round, rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot);
+		PRINTF("{rx stats-%d} %u, %u, %u, %u, %lu, %lu, %u, %u, %u, %lu, %d\n", round, rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot);
 #endif
 #if PRINT_RSSI
 		// PRINTF("t_start_round: %d |",t_start_round);
-		PRINTF("{rssi-%d}{relay-%d relay_min-%d} ", round, relay, relay_min);
+		PRINTF("{rssi-%d}", round);
 		for (i = 0; i < sizeof(rx_rssi) / sizeof(rx_rssi[0]); i++)
 		{
 			PRINTF("%d, ", rx_rssi[i]);

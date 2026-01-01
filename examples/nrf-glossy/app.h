@@ -100,7 +100,7 @@ enum app_state {
 //void print_app_states(void);
 //void poll_minicast(void);
 void app_start();
-void app_new_start(uint8_t forwarded_data, uint16_t round);
+void app_level_sharing(uint8_t forwarded_data, uint16_t round);
 void app_new_opt_start(uint8_t forwarded_data, uint16_t round);
 
 

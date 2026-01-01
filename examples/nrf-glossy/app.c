@@ -210,7 +210,7 @@ void store_levels()
 #endif
 	}
 
-	sort_generated_list();
+	// sort_generated_list();
 }
 
 void print_app_states()
@@ -230,12 +230,6 @@ void print_app_states()
 #endif
 	i = 0;
 	j = 0;
-
-	// printf("| ");
-	if (my_round >= GLOSSY_ROUNDS && my_round < LEVEL_SHARING_ROUND)
-	{
-		store_levels();
-	}
 
 	// printf("| ");
 	printf("even_chain-%5u	odd_chain-%5u\n", even_chain, odd_chain);
@@ -306,22 +300,22 @@ void rx_packet_data()
 	//			last_tx_relay_cnt = app_relay_cnt_field_backup-1;
 	//	}
 
-	app_pos = app_chain_cnt_field_backup;
+	uint8_t rx_pos = app_chain_cnt_field_backup;  // Use local variable to avoid overwriting global app_pos
 	// If the data is not there in the current node and the data recieved by the node in this subslot is non-zero then fdo the operation
-	if (app_data_storage[app_pos] == 0 && app_data_field_backup != 0)
+	if (app_data_storage[rx_pos] == 0 && app_data_field_backup != 0)
 	{
 		// Save the data received in the data storage array
-		app_data_storage[app_pos] = app_data_field_backup;
+		app_data_storage[rx_pos] = app_data_field_backup;
 		// Save the data received in the data chain array
 		app_chain_storage[data_counter++] = app_data_field_backup;
-		app_time_storage[app_pos] = RTIMER_NOW() - app_start_time;
-		//	app_relay_storage[app_pos] = app_relay_cnt_field_backup;
-		ntx_recieve[app_pos] = ntx_recieve_backup;
-		app_rssi[app_pos] = app_rssi_field_backup;
+		app_time_storage[rx_pos] = RTIMER_NOW() - app_start_time;
+		//	app_relay_storage[rx_pos] = app_relay_cnt_field_backup;
+		ntx_recieve[rx_pos] = ntx_recieve_backup;
+		app_rssi[rx_pos] = app_rssi_field_backup;
 		// Number of Data packet received
 		app_rx_cnt_main++;
 		// Set the power array at that pos 1 so that this node will transmit the data
-		power_array[app_pos] = 1;
+		power_array[rx_pos] = 1;
 	}
 
 	// If packet received with a new relay count
@@ -358,13 +352,13 @@ static void make_packet(mint_ble_beacon_t *pkt)
 	//	pkt->beacon_type = 0x1502;//0x0215U; //proximity ibeacon
 	//	pkt->power = 0;//256 - 60; //RSSI = -60 dBm; Measured Power = 256 – 60 = 196 = 0xC4
 #endif
-	app_pos = APP_CHAIN_CNT_FIELD;
+	uint8_t pkt_pos = APP_CHAIN_CNT_FIELD;  // Use local variable to avoid overwriting global app_pos
 
-	if (power_array[app_pos])
+	if (power_array[pkt_pos])
 	{
-		// if(power_array[app_pos]) {
+		// if(power_array[pkt_pos]) {
 		my_radio_set_tx_power(BLE_MAX_POWER);
-		fill_data(app_data_storage[app_pos], app_data_len);
+		fill_data(app_data_storage[pkt_pos], app_data_len);
 	}
 	else
 	{
@@ -559,7 +553,28 @@ void try_rx(uint8_t ntx_i)
 #endif
 }
 
-void app_new_start(uint8_t forwarded_data, uint16_t round_)
+/**
+ * @brief Single-round level sharing using TDMA + Opportunistic Reception (OR)
+ * 
+ * Protocol: Pure TDMA (no SI - Simultaneous Initiation)
+ * - All nodes participate equally (no odd/even initiator distinction)
+ * - Each node transmits its level in its own TDMA slot (position-based)
+ * - All other nodes listen and opportunistically receive (OR)
+ * - Chain length = NUM_NODES (all nodes get a slot)
+ * - Duration: ~260ms for 48 nodes (48 slots × 5.4ms/slot)
+ * 
+ * How it works:
+ * 1. All nodes start in RX mode
+ * 2. When chain position matches my position: TX my level
+ * 3. At all other positions: RX and collect neighbor levels (OR)
+ * 4. After all positions: Complete with full level set
+ * 
+ * Key differences from SI-based data dissemination:
+ * - No initiator check (all nodes equal)
+ * - No chain position filtering during RX (accept all positions)
+ * - Single round only (no retransmissions needed in reliable testbed)
+ */
+void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 {
 #if print_extra
 	if (time_counter < MAX_NEW)
@@ -592,11 +607,9 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 	app_data_len = USER_DATA_LEN;
 	app_data = 1;
 
-	// Only initialize storage at the start of level sharing, not every round
-	if (my_round == GLOSSY_ROUNDS)
-	{
-		initialize_storage();
-	}
+	
+	initialize_storage();
+
 	app_start_time = RTIMER_NOW();
 
 	if (app_node_pos >= 0 && app_node_pos < app_num_nodes)
@@ -604,18 +617,9 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 		// app_pos = ((app_node_pos-1)/(app_chain_len-2))*app_chain_len + ((app_node_pos-1)%(app_chain_len-2)) + 1;
 		app_pos = app_node_pos;
 		power_array[app_pos] = 1;
-		if (my_round >= GLOSSY_ROUNDS && my_round < LEVEL_SHARING_ROUND)
-		{
-			app_data_storage[app_pos] = my_level;
-			app_time_storage[app_pos] = RTIMER_NOW() - app_start_time;
-			app_rssi[app_pos] = 0;
-		}
-		else
-		{
-			app_data_storage[app_pos] = testbed_pi_ids[app_node_pos];
-			app_time_storage[app_pos] = RTIMER_NOW() - app_start_time;
-			app_rssi[app_pos] = 0;
-		}
+		app_data_storage[app_pos] = my_level;
+		app_time_storage[app_pos] = RTIMER_NOW() - app_start_time;
+		app_rssi[app_pos] = 0;
 		app_rx_cnt_main++;
 	}
 
@@ -639,16 +643,11 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 
 	app_packet_len = sizeof(mint_ble_beacon_t);
 
-	my_initiator_flag = check_initiator_flag(my_level);
-	// if(IS_MINT_INITIATOR())
-	if (my_initiator_flag)
-	{
-		app_state = STATE_TX_NOT_END;
-	}
-	else
-	{
-		app_state = STATE_RX_NOT_END;
-	}
+	// TDMA+OR Level Sharing: All nodes participate equally
+	// No SI (Simultaneous Initiation) - just pure TDMA
+	// Each node will TX at its own position, RX at all others
+	app_state = STATE_RX_NOT_END;  // Start in RX mode
+
 	//	mint_start_round = t_start_round + GLOSSY_DURATION_MAX  + FIRST_SLOT_OFFSET+GUARD_TIME;
 	mint_start_round = t_start_round + GLOSSY_DURATION_MAX + FIRST_SLOT_OFFSET;
 	// mint_start_round_ = RTIMER_NOW()  + FIRST_SLOT_OFFSET;
@@ -667,23 +666,10 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 	app_chain_count[chain_count_counter++] = app_chain_len;
 	while (RTIMER_CLOCK_LT(RTIMER_NOW(), target))
 	{
-		slot_terminator++;
-		if (slot_terminator == app_chain_len + 1)
-		{
-#if print_extra
-			if (seq_counter < MAX_NEW_BIG)
-				mint_tx_status[seq_counter++] = 'X';
-			if (app_chain_cnt != 0) // its 0 , if it is stored in the below conditions so we dnt need to store it again now.
-			{
-				if (chain_count_counter < MAX_NEW)
-					app_chain_count[chain_count_counter++] = app_chain_cnt;
-			}
-#endif
-			//	app_chain_count[chain_count_counter++]=slot_terminator;
-			slot_terminator = 1;
-			one_subslot_packet_received_flag = 0;
-			app_chain_cnt = 0;
-		}
+		// In TDMA mode, position should follow slot number
+		app_chain_cnt = mint_slot;
+		
+		// Note: slot_terminator logic removed for TDMA - we iterate exactly once through all positions
 
 #if print_extra
 		// if(slot_counter < MAX_NEW_BIG)
@@ -694,11 +680,14 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 		// if(slot_counter < MAX_NEW_BIG)
 		// slot_time_storage[slot_counter++] = mint_tt;
 #endif
-		if (app_state == STATE_TX_NOT_END)
+		// TDMA Logic: Check if current slot matches my position
+		if (app_chain_cnt == app_pos && power_array[app_pos] == 1)
 		{
-			if (power_array[APP_CHAIN_CNT_FIELD] == 1)
+			// My turn to transmit!
 			{
 				guard_time = GUARD_TIME_SHORT;
+				APP_CHAIN_CNT_FIELD = app_chain_cnt;  // Set chain position in packet
+				printf("[TX] pos=%d, my_level=%d, app_data_storage[%d]=%d\n", app_pos, my_level, app_pos, app_data_storage[app_pos]);
 				make_packet(&app_packet);
 				uint8_t *tx_msg = (uint8_t *)&app_packet;
 				schedule_tx_abs(tx_msg, GET_CHANNEL(mint_round, mint_slot), mint_tt - ADDRESS_EVENT_T_TX_OFFSET + ARTIFICIAL_TX_OFFSET);
@@ -729,74 +718,23 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 #endif
 					}
 				}
-				if (app_chain_cnt == app_chain_len - 1)
-				{
-					app_state = STATE_RX_NOT_END;
-				}
-				// every other transmission needs to be immediately followed by another transmission
-				else
-				{
-					app_state = STATE_TX_NOT_END;
-				}
-
-				// last_tx_relay_cnt = APP_RELAY_CNT_FIELD;
-
-				if (app_state == STATE_TX_NOT_END)
-				{
+				// After transmitting, move to next slot (mint_slot++ at end of loop)
+				// app_chain_cnt is now automatically set to mint_slot at loop start
 #if print_extra
-					if (chain_count_counter < MAX_NEW)
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
+				if (chain_count_counter < MAX_NEW)
+					app_chain_count[chain_count_counter++] = app_chain_cnt;
 #endif
-					app_chain_cnt++;
-					APP_CHAIN_CNT_FIELD = app_chain_cnt;
-				}
-				else
+				
+				// Check if we've completed the full chain
+				if (app_chain_cnt >= app_chain_len - 1)  // -1 because we check at start of last slot
 				{
-#if print_extra
-					if (chain_count_counter < MAX_NEW)
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-					app_chain_cnt = 0;
-					tx_cnts[app_tx_cnt] = app_tx_cnt + 1;
-					app_tx_cnt++;
-					if ((app_tx_cnt == app_tx_max) /*&& !IS_MINT_INITIATOR()*/)
-					{
-						app_state = STATE_MINT_STOP;
-					}
-				}
-			}
-			else
-			{
-				try_rx(0);
-				if (app_chain_cnt == app_chain_len - 1)
-				{
-#if print_extra
-					if (chain_count_counter < MAX_NEW)
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-
-					app_chain_cnt = 0;
-					app_state = STATE_RX_NOT_END;
-					app_tx_cnt++;
-					if ((app_tx_cnt == app_tx_max) /*&& !IS_MINT_INITIATOR()*/)
-					{
-						app_state = STATE_MINT_STOP;
-					}
-				}
-				else
-				{
-#if print_extra
-					if (chain_count_counter < MAX_NEW)
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-					app_state = STATE_TX_NOT_END;
-					app_chain_cnt++;
-					APP_CHAIN_CNT_FIELD = app_chain_cnt;
+					app_state = STATE_MINT_STOP;  // Done with level sharing
 				}
 			}
 		}
 		else if (app_state == STATE_RX_NOT_END)
 		{
+			// Not my turn - listen for others' transmissions
 			guard_time = GUARD_TIME;
 			uint8_t got_payload_event, got_address_event, got_end_event, slot_started, last_crc_is_ok, last_rx_ok, got_wrong_packet;
 			got_payload_event = 0, got_address_event = 0, got_end_event = 0, slot_started = 0, last_crc_is_ok = 0, last_rx_ok = 0, got_wrong_packet = 0;
@@ -863,7 +801,9 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 					//					if(last_rx_ok){
 
 					memcpy(&app_packet, &rx_buffer, rx_pkt->radio_len + 2);
-					if (APP_CHAIN_CNT_FIELD == app_chain_cnt)
+					// For level sharing, accept packets from ANY position (OR - Opportunistic Reception)
+					// No chain position check needed - we want to collect all levels
+					if (1)  // Always accept during level sharing
 					{
 						received++;
 
@@ -883,169 +823,49 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 						//	app_relay_cnt_field_backup = APP_RELAY_CNT_FIELD;
 						one_subslot_packet_received_flag = 1;
 
-						if (app_state == STATE_RX_NOT_END)
-						{
+						// Packet accepted - position already advanced by app_chain_cnt = mint_slot
+						// No need to manually increment
 #if print_extra
 							if (chain_count_counter < MAX_NEW)
 								app_chain_count[chain_count_counter++] = app_chain_cnt;
 #endif
-							app_chain_cnt++;
-						}
-						else
-						{
-#if print_extra
-							if (chain_count_counter < MAX_NEW)
+							
+							// Stop if all positions covered
+							if (app_chain_cnt >= app_chain_len - 1)  // -1 because we check at start of last slot
 							{
-								app_chain_count[chain_count_counter++] = app_chain_cnt;
-							}
-							if (chain_count_no_address_counter < MAX_NEW_BIG && app_chain_cnt_no_address != 0)
-							{
-								app_chain_count_no_address[chain_count_no_address_counter++] = app_chain_cnt_no_address;
-							}
-#endif
-							app_chain_cnt = 0;
-							app_chain_cnt_no_address = 0;
-							APP_CHAIN_CNT_FIELD = app_chain_cnt;
-							//	APP_RELAY_CNT_FIELD++;
-							if (app_tx_cnt == app_tx_max)
-							{
-								// no more Tx to perform: stop Glossy
 								app_state = STATE_MINT_STOP;
 							}
-						}
 
 						rx_packet_data();
 					}
-					else
-					{
-						wrong_packet++;
-						got_wrong_packet = 1;
-						if (app_chain_cnt == app_chain_len - 1)
-						{
-#if print_extra
-							if (chain_count_counter < MAX_NEW)
-								app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-							app_state = STATE_TX_NOT_END;
-						}
-						if (app_state == STATE_RX_NOT_END)
-						{
-#if print_extra
-							if (chain_count_counter < MAX_NEW)
-								app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-							app_chain_cnt++;
-						}
-						else
-						{
-#if print_extra
-							if (chain_count_counter < MAX_NEW)
-							{
-								app_chain_count[chain_count_counter++] = app_chain_cnt;
-							}
-							if (chain_count_no_address_counter < MAX_NEW_BIG && app_chain_cnt_no_address != 0)
-							{
-								app_chain_count_no_address[chain_count_no_address_counter++] = app_chain_cnt_no_address;
-							}
-#endif
-							app_chain_cnt = 0;
-							app_chain_cnt_no_address = 0;
-							APP_CHAIN_CNT_FIELD = app_chain_cnt;
-							// APP_RELAY_CNT_FIELD=app_relay_cnt_field_backup+1;
-							if (app_tx_cnt == app_tx_max)
-							{
-								// no more Tx to perform: stop Glossy
-								app_state = STATE_MINT_STOP;
-							}
-						}
-					}
+					// Note: Removed wrong_packet handling - we accept all positions during level sharing
 				}
 				else
 				{
+					// CRC failed - just move to next slot (mint_slot++ at end)
 					crc_not_ok++;
-					if (app_chain_cnt == (app_chain_len - 1) && one_subslot_packet_received_flag == 1)
-					{
 #if print_extra
-						if (chain_count_counter < MAX_NEW)
-						{
-							app_chain_count[chain_count_counter++] = app_chain_cnt;
-						}
-						if (chain_count_no_address_counter < MAX_NEW_BIG && app_chain_cnt_no_address != 0)
-						{
-							app_chain_count_no_address[chain_count_no_address_counter++] = app_chain_cnt_no_address;
-						}
-
+					if (chain_count_counter < MAX_NEW)
+						app_chain_count[chain_count_counter++] = app_chain_cnt;
 #endif
-						app_state = STATE_TX_NOT_END;
-						app_chain_cnt = 0;
-						app_chain_cnt_no_address = 0;
-						APP_CHAIN_CNT_FIELD = app_chain_cnt;
-						if (app_tx_cnt == app_tx_max)
-						{
-							app_state = STATE_MINT_STOP;
-						}
-					}
-					if (app_state == STATE_RX_NOT_END)
+					if (app_chain_cnt >= app_chain_len - 1)
 					{
-#if print_extra
-						if (chain_count_counter < MAX_NEW)
-							app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-						app_chain_cnt++;
+						app_state = STATE_MINT_STOP;
 					}
 				}
 			}
 
 			else
 			{
+				// No address event - just move to next slot
 				no_address_event++;
-				if (app_chain_cnt == (app_chain_len - 1) && one_subslot_packet_received_flag == 1)
-				{
-
 #if print_extra
-					if (chain_count_counter < MAX_NEW)
-					{
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-					}
-					if (chain_count_no_address_counter < MAX_NEW_BIG && app_chain_cnt_no_address != 0)
-					{
-						app_chain_count_no_address[chain_count_no_address_counter++] = app_chain_cnt_no_address;
-					}
+				if (chain_count_counter < MAX_NEW)
+					app_chain_count[chain_count_counter++] = app_chain_cnt;
 #endif
-					app_state = STATE_TX_NOT_END;
-					app_chain_cnt = 0;
-					app_chain_cnt_no_address = 0;
-					APP_CHAIN_CNT_FIELD = app_chain_cnt;
-					if (app_tx_cnt == app_tx_max)
-					{
-						app_state = STATE_MINT_STOP;
-					}
-				}
-				else if (app_chain_cnt_no_address >= 10 * (CHAIN_LENGTH))
+				if (app_chain_cnt >= app_chain_len - 1)
 				{
 					app_state = STATE_MINT_STOP;
-#if print_extra
-					if (chain_count_counter < MAX_NEW)
-					{
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-					}
-					if (chain_count_no_address_counter < MAX_NEW_BIG)
-					{
-						app_chain_count_no_address[chain_count_no_address_counter++] = app_chain_cnt_no_address;
-					}
-#endif
-				}
-				else if (app_state == STATE_RX_NOT_END)
-				{
-#if print_extra
-					if (chain_count_counter < MAX_NEW)
-						app_chain_count[chain_count_counter++] = app_chain_cnt;
-#endif
-					app_chain_cnt++;
-					app_chain_cnt_no_address++;
-				}
-				else
-				{
 				}
 			}
 #if print_extra
@@ -1099,8 +919,11 @@ void app_new_start(uint8_t forwarded_data, uint16_t round_)
 	}
 	app_end_time = RTIMER_NOW();
 	my_radio_off_completely(); // dbt
+	store_levels();
 	print_app_states();
 }
+
+// ------------------------------------------------------------------------------------------------
 
 static void make_opt_packet(mint_ble_beacon_t *pkt)
 {
