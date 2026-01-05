@@ -3,6 +3,10 @@
 #if PRINT_CUSTOM_DEBUG_MSG
 static char dbgmsg[256] = "", dbgmsg2[256] = "";
 #endif
+#if PRINT_TIMING_DEBUG
+static char dbg_timing1[256] = "", dbg_timing2[256] = "";
+#endif
+static char dbg_round_info[256] = "", dbg_level_sharing[256] = "";
 static uint8_t my_tx_buffer[255] = {0};
 static uint8_t my_rx_buffer[255] = {0};
 #if USE_HAMMING_CODE
@@ -16,7 +20,7 @@ static uint64_t corrupt_msg_index = 0;
 static uint32_t my_id = 0;
 
 uint16_t round = 0, slot = 0, logslot = 0, join_round = -1, sync_slot = UINT16_MAX;
-rtimer_clock_t tt = 0, t_start_round = 0;
+volatile rtimer_clock_t tt = 0, t_start_round = 0;
 uint8_t relay, relay_min, initiator_relay;
 
 uint8_t relay_list[GLOSSY_ROUNDS], list_itr = 0, average_relay = 0, level_calculated = 0;
@@ -344,6 +348,18 @@ PROCESS_THREAD(tx_process, ev, data)
 #if PRINT_TX_STATUS
 					tx_status[logslot] = 'T';
 #endif /* PRINT_TX_STATUS */
+#if PRINT_TIMING_DEBUG
+					SPRINTF(dbg_timing1,
+							"txmiss r<%u> s<%u> tt<%lu> now<%lu> start<%lu> gt<%lu> addr<%lu> art<%lu>",
+							(unsigned)round,
+							(unsigned)slot,
+							(unsigned long)tt,
+							(unsigned long)RTIMER_NOW(),
+							(unsigned long)t_start_round,
+							(unsigned long)guard_time,
+							(unsigned long)ADDRESS_EVENT_T_TX_OFFSET,
+							(unsigned long)ARTIFICIAL_TX_OFFSET);
+#endif /* PRINT_TIMING_DEBUG */
 				}
 				else
 				{
@@ -445,9 +461,20 @@ PROCESS_THREAD(tx_process, ev, data)
 						}
 						if (rx_missed_slot || !slot_started)
 						{
-#if PRINT_CUSTOM_DEBUG_MSG
+	#if PRINT_CUSTOM_DEBUG_MSG
 							SPRINTF(dbgmsg, "t %" PRIu32 " %" PRIu32 " n %" PRIu32 " p %" PRIu32 " m %d %d", (t_start_round), rx_target_time, rx_tn, t_proc, rx_missed_slot, slot_started);
-#endif
+	#endif
+	#if PRINT_TIMING_DEBUG
+							SPRINTF(dbg_timing2,
+									"rxmiss r<%u> s<%u> tgt<%lu> now<%lu> start<%lu> gt<%lu> offs<%lu>",
+									(unsigned)round,
+									(unsigned)slot,
+									(unsigned long)rx_target_time,
+									(unsigned long)RTIMER_NOW(),
+									(unsigned long)t_start_round,
+									(unsigned long)guard_time,
+									(unsigned long)(FIRST_SLOT_OFFSET - ADDRESS_EVENT_T_TX_OFFSET - guard_time));
+	#endif /* PRINT_TIMING_DEBUG */
 						}
 					}
 
@@ -643,7 +670,7 @@ PROCESS_THREAD(tx_process, ev, data)
 		{
 			if (round < GLOSSY_ROUNDS)
 			{
-				printf("{round-%d}{relay-%d relay_min-%d level-%2d}\n", round, relay, relay_min, level_calculated);
+				SPRINTF(dbg_round_info, "{round-%d}{relay-%d relay_min-%d level-%2d}", round, relay, relay_min, level_calculated);
 				if (IS_INITIATOR())
 				{
 					relay_list[list_itr++] = initiator_relay;
@@ -657,16 +684,14 @@ PROCESS_THREAD(tx_process, ev, data)
 			else if (round == GLOSSY_ROUNDS)
 			{
 				// My level is calculated now. Share my level and get levels of other nodes.
-				printf("Calculated level: %d\n", level_calculated);
-				printf("Starting level sharing..\n");
+				SPRINTF(dbg_level_sharing, "app_level_sharing called with level %2d", level_calculated);
 				app_level_sharing(level_calculated, round);
 				//	app_level_sharing(1,round);
 			}
 			else
 			{
 
-				printf("{round-%d}{level-%2d}", round, level_calculated);
-				printf("Calling app_new_opt_start\n");
+				SPRINTF(dbg_round_info, "app_new_opt_start called with level %2d", level_calculated);
 				app_new_opt_start(level_calculated, round); // For chain length reduction
 															// app_level_sharing(level_calculated,round);      // Only MultiCast
 				// print_app_states()
@@ -726,6 +751,30 @@ PROCESS_THREAD(tx_process, ev, data)
 			dbgmsg2[0] = 0;
 		}
 #endif /* PRINT_DEBUG_MSG */
+
+#if PRINT_TIMING_DEBUG
+	if (dbg_timing1[0] != 0)
+	{
+		PRINTF("{dgtx-%d} %s\n", round, dbg_timing1);
+		dbg_timing1[0] = 0;
+	}
+	if (dbg_timing2[0] != 0)
+	{
+		PRINTF("{dgrx-%d} %s\n", round, dbg_timing2);
+		dbg_timing2[0] = 0;
+	}
+#endif /* PRINT_TIMING_DEBUG */
+
+	if (dbg_round_info[0] != 0)
+	{
+		PRINTF("%s\n", dbg_round_info);
+		dbg_round_info[0] = 0;
+	}
+	if (dbg_level_sharing[0] != 0)
+	{
+		PRINTF("%s\n", dbg_level_sharing);
+		dbg_level_sharing[0] = 0;
+	}
 
 #else /* TESTBED_LOG_STYLE */
 		PRINTF("rx_ok %u, crc %u, none %u, tx %u: OK %lu of %lu, berr b%u p%u r%u %lu, sync %d\n", rx_ok, rx_crc_failed, rx_none, tx_done, rx_ok_total, rx_ok_total + rx_failed_total, berr_per_byte_max, berr_per_pkt_max, berr /* bit errors per round */, berr_total, sync_slot);

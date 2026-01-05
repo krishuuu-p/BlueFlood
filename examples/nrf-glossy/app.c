@@ -59,6 +59,29 @@ static uint8_t odd_chain_list[SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 static uint8_t even_chain_app_pos_list[SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static uint8_t even_chain_list[SIZE] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
+#if PRINT_LEVEL_SHARING_DEBUG
+// Debug arrays to track received values during level sharing
+#define DBG_LS_SIZE 10
+static uint8_t dbg_ls_slot[DBG_LS_SIZE];      // slot number
+static uint16_t dbg_ls_chain_cnt[DBG_LS_SIZE]; // received chain_cnt (raw 16-bit)
+static uint8_t dbg_ls_data[DBG_LS_SIZE];      // received data[0]
+static uint8_t dbg_ls_stored[DBG_LS_SIZE];    // whether data was stored (1) or not (0)
+static uint8_t dbg_ls_raw_byte2[DBG_LS_SIZE]; // raw byte[2] from rx_buffer for each packet
+static uint8_t dbg_ls_raw_byte3[DBG_LS_SIZE]; // raw byte[3] from rx_buffer for each packet
+static uint8_t dbg_ls_idx = 0;
+
+// Debug for TX during level sharing
+static uint8_t dbg_tx_slot = 255;     // slot where this node transmitted
+static uint16_t dbg_tx_chain_cnt = 0; // chain_cnt that was set in packet
+static uint8_t dbg_tx_data = 0;       // data that was transmitted
+static uint8_t dbg_tx_raw[6] = {0};   // raw first 6 bytes of TX packet
+
+// Debug for RX raw bytes (first received packet only)
+static uint8_t dbg_rx_raw[6] = {0};   // raw first 6 bytes of first RX packet
+static uint8_t dbg_rx_raw_captured = 0;
+static uint8_t dbg_rx_raw_slot = 255; // slot number when RX_RAW was captured
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
+
 static uint8_t app_data_odd_storage[MAX_NEW];
 ;
 static uint32_t app_node_pos_optimal;
@@ -279,6 +302,25 @@ void print_app_states()
 		}
 	}
 	printf("\n");
+	
+#if PRINT_LEVEL_SHARING_DEBUG
+	// Debug: print TX info for level sharing with raw bytes
+	printf("TX_DEBUG: s%u c%u d%u | raw:%02X %02X %02X %02X %02X %02X\n", 
+		dbg_tx_slot, dbg_tx_chain_cnt, dbg_tx_data,
+		dbg_tx_raw[0], dbg_tx_raw[1], dbg_tx_raw[2], dbg_tx_raw[3], dbg_tx_raw[4], dbg_tx_raw[5]);
+	
+	// Debug: print first RX raw bytes WITH SLOT NUMBER
+	printf("RX_RAW: slot%u | %02X %02X %02X %02X %02X %02X\n", dbg_rx_raw_slot,
+		dbg_rx_raw[0], dbg_rx_raw[1], dbg_rx_raw[2], dbg_rx_raw[3], dbg_rx_raw[4], dbg_rx_raw[5]);
+	
+	// Debug: print received packet info for level sharing with raw byte2/3
+	printf("RX_DEBUG: %u pkts | ", dbg_ls_idx);
+	for (i = 0; i < dbg_ls_idx && i < DBG_LS_SIZE; i++) {
+		printf("s%u:c%u:d%u:r%02X%02X:%c ", dbg_ls_slot[i], dbg_ls_chain_cnt[i], dbg_ls_data[i], 
+			dbg_ls_raw_byte2[i], dbg_ls_raw_byte3[i], dbg_ls_stored[i] ? 'Y' : 'N');
+	}
+	printf("\n");
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
 }
 
 void fill_data(uint8_t data, uint8_t len)
@@ -647,6 +689,18 @@ void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 	// No SI (Simultaneous Initiation) - just pure TDMA
 	// Each node will TX at its own position, RX at all others
 	app_state = STATE_RX_NOT_END;  // Start in RX mode
+	
+#if PRINT_LEVEL_SHARING_DEBUG
+	// Reset debug arrays for level sharing
+	dbg_ls_idx = 0;
+	dbg_tx_slot = 255;
+	dbg_tx_chain_cnt = 0;
+	dbg_tx_data = 0;
+	dbg_rx_raw_captured = 0;
+	dbg_rx_raw_slot = 255;
+	for (int di = 0; di < 6; di++) { dbg_tx_raw[di] = 0; dbg_rx_raw[di] = 0; }
+	for (int di = 0; di < DBG_LS_SIZE; di++) { dbg_ls_raw_byte2[di] = 0; dbg_ls_raw_byte3[di] = 0; }
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
 
 	//	mint_start_round = t_start_round + GLOSSY_DURATION_MAX  + FIRST_SLOT_OFFSET+GUARD_TIME;
 	mint_start_round = t_start_round + GLOSSY_DURATION_MAX + FIRST_SLOT_OFFSET;
@@ -687,8 +741,25 @@ void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 			{
 				guard_time = GUARD_TIME_SHORT;
 				APP_CHAIN_CNT_FIELD = app_chain_cnt;  // Set chain position in packet
-				printf("[TX] pos=%d, my_level=%d, app_data_storage[%d]=%d\n", app_pos, my_level, app_pos, app_data_storage[app_pos]);
+				// printf("[TX] pos=%d, my_level=%d, app_data_storage[%d]=%d\n", app_pos, my_level, app_pos, app_data_storage[app_pos]);
 				make_packet(&app_packet);
+				
+#if PRINT_LEVEL_SHARING_DEBUG
+			// Debug: record what we're transmitting
+			dbg_tx_slot = mint_slot;
+			dbg_tx_chain_cnt = APP_CHAIN_CNT_FIELD;
+			dbg_tx_data = APP_DATA_FIELD[0];
+			
+			// Debug: record raw bytes of packet for verification
+			volatile uint8_t *raw = (volatile uint8_t *)&app_packet;
+			dbg_tx_raw[0] = raw[0];  // pdu_header
+			dbg_tx_raw[1] = raw[1];  // radio_len
+			dbg_tx_raw[2] = raw[2];  // chain_cnt low byte
+			dbg_tx_raw[3] = raw[3];  // chain_cnt high byte
+			dbg_tx_raw[4] = raw[4];  // data[0]
+			dbg_tx_raw[5] = raw[5];  // data[1]
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
+				
 				uint8_t *tx_msg = (uint8_t *)&app_packet;
 				schedule_tx_abs(tx_msg, GET_CHANNEL(mint_round, mint_slot), mint_tt - ADDRESS_EVENT_T_TX_OFFSET + ARTIFICIAL_TX_OFFSET);
 
@@ -799,6 +870,20 @@ void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 					// last_rx_ok = last_crc_is_ok; //XXX!
 
 					//					if(last_rx_ok){
+					
+#if PRINT_LEVEL_SHARING_DEBUG
+					// Debug: capture raw RX bytes BEFORE memcpy (first valid packet only)
+					if (!dbg_rx_raw_captured) {
+						dbg_rx_raw[0] = rx_buffer[0];
+						dbg_rx_raw[1] = rx_buffer[1];
+						dbg_rx_raw[2] = rx_buffer[2];
+						dbg_rx_raw[3] = rx_buffer[3];
+						dbg_rx_raw[4] = rx_buffer[4];
+						dbg_rx_raw[5] = rx_buffer[5];
+						dbg_rx_raw_slot = mint_slot;  // Record which slot this came from
+						dbg_rx_raw_captured = 1;
+					}
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
 
 					memcpy(&app_packet, &rx_buffer, rx_pkt->radio_len + 2);
 					// For level sharing, accept packets from ANY position (OR - Opportunistic Reception)
@@ -815,6 +900,23 @@ void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 						app_state_backup = app_state;
 						app_chain_cnt_field_backup = APP_CHAIN_CNT_FIELD;
 						app_data_field_backup = APP_DATA_FIELD[0];
+						
+#if PRINT_LEVEL_SHARING_DEBUG
+						// Debug: record received values BEFORE rx_packet_data()
+						uint8_t dbg_current_idx = 255;  // invalid
+						if (dbg_ls_idx < DBG_LS_SIZE) {
+							dbg_current_idx = dbg_ls_idx;
+							dbg_ls_slot[dbg_ls_idx] = mint_slot;
+							dbg_ls_chain_cnt[dbg_ls_idx] = APP_CHAIN_CNT_FIELD;  // Raw 16-bit value
+							dbg_ls_data[dbg_ls_idx] = APP_DATA_FIELD[0];
+							dbg_ls_stored[dbg_ls_idx] = 0;  // Will be set to 1 by rx_packet_data if stored
+							// Capture raw bytes for this specific packet
+							dbg_ls_raw_byte2[dbg_ls_idx] = rx_buffer[2];
+							dbg_ls_raw_byte3[dbg_ls_idx] = rx_buffer[3];
+							dbg_ls_idx++;
+						}
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
+						
 #if (RADIO_MODE_CONF == RADIO_MODE_MODE_Ieee802154_250Kbit)
 						app_rssi_field_backup = app_packet.lqi;
 #else
@@ -837,6 +939,17 @@ void app_level_sharing(uint8_t forwarded_data, uint16_t round_)
 							}
 
 						rx_packet_data();
+						
+#if PRINT_LEVEL_SHARING_DEBUG
+						// Debug: update stored flag after rx_packet_data
+						if (dbg_current_idx < DBG_LS_SIZE) {
+							// Check if data was actually stored
+							uint8_t rx_pos = dbg_ls_chain_cnt[dbg_current_idx] & 0xFF;  // truncate to 8-bit
+							if (app_data_storage[rx_pos] == dbg_ls_data[dbg_current_idx] && dbg_ls_data[dbg_current_idx] != 0) {
+								dbg_ls_stored[dbg_current_idx] = 1;
+							}
+						}
+#endif /* PRINT_LEVEL_SHARING_DEBUG */
 					}
 					// Note: Removed wrong_packet handling - we accept all positions during level sharing
 				}

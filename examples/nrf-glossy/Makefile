@@ -2,12 +2,12 @@ SHELL:=/bin/sh
 
 #### Note: the hex file produced by the makefile is actually an ihex!
 GRAZ_LOGIN_URL="https://iti-testbed.tugraz.at/auth/login"
-GRAZ_LOG_URL=https://iti-testbed.tugraz.at/nordic/queue/download_logs/
+GRAZ_LOG_URL="https://iti-testbed.tugraz.at/nordic/queue/download_logs/"
 GRAZ_APIKEY=$(shell cat graz_apifile.secret)
 GRAZ_USERNAME=$(shell cat graz_username.secret)
 GRAZ_PASSWORD=$(shell cat graz_password.secret)
 GRAZ_TEST_PROTOCOL_DISSEMINATE=6654
-GRAZ_TEST_PROTOCOL_COLLECT=6653
+GRAZ_TEST_PROTOCOL_COLLECT=6728
 GRAZ_LAYOUT ?= 1
 log ?= 1
 jamming ?= 0
@@ -49,21 +49,23 @@ Ble_LR125Kbit=5 #/*!< Long range 125 kbit/s (TX Only - RX supports both) */
 Ble_LR500Kbit=6 #/*!< Long range 500 kbit/s (TX Only - RX supports both) */
 Ieee802154_250Kbit=15 #/*!< IEEE 802.15.4-2006 250 kbit/s */
 
-period ?= 200 #in ms
-tx_power ?= 0 #in dB
+period ?=4000 #in ms
+tx_power ?= 8 #in dB
 capture ?= 0 #evaluate capture mode
 ble_mode ?= $(Ble_1Mbit) #Bluetooth mode
 tx_offset ?= 0 #inject TX delay
 packet_size ?= 38 #packet size in bytes
+JOB_NAME ?=test
 #default PDU for standard ibeacon
 n_channels ?= 1 #how many channels to use. Up to 40.
 overrive_ch37 ?= 0 #use a special frequency for channel 37 to avoid Bluetooth traffic
 ntx ?= 4 #how many repititions
 initiator?=0 #initiator node ID
+mint_initiator?=0 #mint initiator node
 test_mode_tx_carrier?=0 #do not tx/rx data, but transmit a constant unmodulated carrier (by keeping the radio in idle mode in slots instead of starting tx/rx)
 #unnecessary
 DURATION ?= 10 #duration of the experiment
-TESTBED_CONF?=WIRED_TESTBED #Default testbed 
+TESTBED_CONF?=DCUBE_TESTBED #Default testbed 
 round_robin_initiator ?= 0 #switch initiator every round
 cpu_busywait ?= 0
 
@@ -82,7 +84,7 @@ CONTIKI_WITH_CHAOS = 0
 CONTIKI_WITH_IPV4 = 0
 CONTIKI_WITH_IPV6 = 0
 CONTIKI_WITH_RIME = 1
-CFLAGS += -DENABLE_BLUEFLOOD_LOGS=$(log) -DROUND_PERIOD_MS_PARAM=$(period) -DTEST_SLEEP_NODE_FOREVER=$(sleep_node_forever) -DBLUEFLOOD_BUSYWAIT=$(cpu_busywait) -DROUND_ROBIN_INITIATOR=$(round_robin_initiator) -DRADIO_TEST_TX_CARRIER=$(test_mode_tx_carrier) -DINITATOR_NODE_INDEX=$(initiator) -DUART_BAUDRATE=$(UART_BR_CONF) -DOVERRIDE_BLE_CHANNEL_37$(overrive_ch37) -DNTX=$(ntx) -DNUMBER_OF_CHANNELS=$(n_channels) -DPACKET_TEST_SIZE_CONF=$(packet_size) -DBLE_DEFAULT_RF_POWER=$(tx_power) -DTEST_CE=$(capture) -DRADIO_MODE_CONF=$(ble_mode) -DARTIFICIAL_TX_OFFSET=$(tx_offset)
+CFLAGS += -DENABLE_BLUEFLOOD_LOGS=$(log) -DROUND_PERIOD_MS_PARAM=$(period) -DTEST_SLEEP_NODE_FOREVER=$(sleep_node_forever) -DBLUEFLOOD_BUSYWAIT=$(cpu_busywait) -DROUND_ROBIN_INITIATOR=$(round_robin_initiator) -DRADIO_TEST_TX_CARRIER=$(test_mode_tx_carrier) -DINITATOR_NODE_INDEX=$(initiator) -DMINT_INITATOR_NODE_INDEX=$(mint_initiator) -DUART_BAUDRATE=$(UART_BR_CONF) -DOVERRIDE_BLE_CHANNEL_37$(overrive_ch37) -DNTX=$(ntx) -DNUMBER_OF_CHANNELS=$(n_channels) -DPACKET_TEST_SIZE_CONF=$(packet_size) -DBLE_DEFAULT_RF_POWER=$(tx_power) -DTEST_CE=$(capture) -DRADIO_MODE_CONF=$(ble_mode) -DARTIFICIAL_TX_OFFSET=$(tx_offset)
 ifdef TESTBED_CONF
 CFLAGS += -DTESTBED=$(TESTBED_CONF)
 endif
@@ -275,7 +277,7 @@ graztestbedjson_diss: all
 	@echo '{ "protocol": $(GRAZ_TEST_PROTOCOL_DISSEMINATE), "layout": $(GRAZ_LAYOUT), "patching": false, "message_length": 8, "periodicity": 0, "name": "$(FIRMWARE_NAME)", "description": "$(FIRMWARE_NAME)", "duration": $(shell echo "60*(${DURATION})"|bc -l), "logs": $(log), "jamming": $(jamming), "file": "'$(shell cat dirty-channel.hex|base64)'" }' >dirty-channel.json;
 
 graztestbedjson_collect: all
-	@echo '{ "protocol": $(GRAZ_TEST_PROTOCOL_COLLECT), "layout": $(GRAZ_LAYOUT), "patching": false, "message_length": 8, "periodicity": 0, "name": "$(FIRMWARE_NAME)", "description": "$(FIRMWARE_NAME)", "duration": $(shell echo "60*(${DURATION})"|bc -l), "logs": $(log), "jamming": $(jamming), "file": "'$(shell cat dirty-channel.hex|base64)'" }' >dirty-channel.json;
+	@echo '{ "protocol": $(GRAZ_TEST_PROTOCOL_COLLECT), "layout": $(GRAZ_LAYOUT), "patching": false, "message_length": 8, "periodicity": 0, "name": "$(JOB_NAME)", "description": "test", "duration": $(shell echo "60*(${DURATION})"|bc -l), "logs": $(log), "jamming": $(jamming), "file": "'$(shell cat dirty-channel.hex|base64)'" }' >dirty-channel.json;
 
 graztestbedschedule: graztestbedjson_diss
 	@curl -H "Content-Type: application/json" -X POST -d @dirty-channel.json "https://iti-testbed.tugraz.at/api/queue/create_job?key=${GRAZ_APIKEY}"
@@ -357,6 +359,29 @@ grazdownload:
 	fi; \
 	done; \
 	rm -rf graz_testbed/logs_${JOB_ID}.zip;
+	
+##JLINK serial numbers of motes to be able to flash one specific
+	##you only need it if you have several motes connected to the same computer
+ifeq ($(MOTE),1)
+NRF_JLINK_SN=683824392 
+endif
+ifeq ($(MOTE),2)
+NRF_JLINK_SN=683728417
+endif
+ifeq ($(MOTE),3)
+NRF_JLINK_SN=683209522
+endif
+
+#programall:
+#make dirty-channel.flash MOTE=1
+#make dirty-channel.flash MOTE=2
+#make dirty-channel.flash MOTE=3
+
+programall:
+	make clean && make dirty-channel.flash MOTE=1 TESTBED_CONF=$(TESTBED_CONF) tx_power=$(tx_power) capture=$(capture) ble_mode=$(ble_mode) initiator=$(initiator) mint_initiator=$(mint_initiator) n_channels=$(n_channels) JOB_NAME=$(JOB_NAME) 
+	make clean && make dirty-channel.flash MOTE=2 TESTBED_CONF=$(TESTBED_CONF) tx_power=$(tx_power) capture=$(capture) ble_mode=$(ble_mode) initiator=$(initiator) mint_initiator=$(mint_initiator) n_channels=$(n_channels) JOB_NAME=$(JOB_NAME) 
+	make clean && make dirty-channel.flash MOTE=3 TESTBED_CONF=$(TESTBED_CONF) tx_power=$(tx_power) capture=$(capture) ble_mode=$(ble_mode) initiator=$(initiator) mint_initiator=$(mint_initiator) n_channels=$(n_channels) JOB_NAME=$(JOB_NAME) 
+
 
 include $(CONTIKI)/Makefile.include
 
@@ -388,3 +413,6 @@ include $(CONTIKI)/Makefile.include
 # iotlab: CFLAGS+= -DTESTBED=IOTLAB_SACLAY -DCOOJA=0
 # iotlab: all
 # 	cp $(CONTIKI_PROJECT).elf $(FIRMWARE_FULL_PATH)
+
+
+

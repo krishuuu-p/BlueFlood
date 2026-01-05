@@ -66,7 +66,7 @@ static uint32_t testbed_ids[] = TESTBED_IDS;
 static uint8_t testbed_pi_ids[] = TESTBED_PI_IDS;
 extern uint16_t round, slot, logslot, join_round , sync_slot;
 extern uint8_t relay,relay_min;
-extern rtimer_clock_t tt, t_start_round;
+extern volatile rtimer_clock_t tt, t_start_round;
 enum {MSG_TURN_BROADCAST=0xff, MSG_TURN_NONE=0xfe};
 /*---------------------------------------------------------------------------*/
 #if ROUND_ROBIN_INITIATOR
@@ -105,6 +105,7 @@ void app_new_opt_start(uint8_t forwarded_data, uint16_t round);
 
 
 #define print_extra true
+#define PRINT_LEVEL_SHARING_DEBUG false
 #define minicast_new true
 #define odd_set_initiator true
 

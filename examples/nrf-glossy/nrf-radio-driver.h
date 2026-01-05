@@ -15,6 +15,8 @@
 #define PRINT_RX_STATS_CONF true
 #define PRINT_NODE_CONFIG_CONF true
 #define PRINT_CUSTOM_DEBUG_MSG_CONF false
+#define PRINT_TIMING_DEBUG_CONF true
+#define PRINT_LEVEL_SHARING_DEBUG_CONF false
 #define PRINT_NODE_REJOIN_WARNING_CONF false
 #define PRINT_GO_LATE_WARNING_CONF true
 /*---------------------------------------------------------------------------*/
@@ -41,6 +43,7 @@
 #define PRINT_RX_STATS ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_RX_STATS_CONF))
 #define PRINT_NODE_CONFIG ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_NODE_CONFIG_CONF))
 #define PRINT_CUSTOM_DEBUG_MSG ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_CUSTOM_DEBUG_MSG_CONF))
+#define PRINT_TIMING_DEBUG ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_TIMING_DEBUG_CONF))
 #define PRINT_NODE_REJOIN_WARNING ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_NODE_REJOIN_WARNING_CONF))
 #define PRINT_GO_LATE_WARNING ((ENABLE_BLUEFLOOD_LOGS) && (PRINT_GO_LATE_WARNING_CONF))
 
@@ -280,8 +283,11 @@ extern const uint8_t ble_channels_list[NUMBER_OF_CHANNELS];
 #define NRF_CILEN_BITS          (2)
 #define NRF_TERMLEN_BITS        (3)
 /* NRF_RADIO->PCNF0 configuration values */
+/* NOTE: S1INCL must be Automatic (0) when S1LEN=0, otherwise the radio reserves
+ * a byte in RAM for S1 even though no S1 bits are transmitted. This causes the
+ * payload to be shifted by one byte, corrupting chain_cnt on RX. */
 #define NRF_PCNF0               (NRF_LFLEN_BITS << RADIO_PCNF0_LFLEN_Pos) | \
-                                (RADIO_PCNF0_S1INCL_Msk) | \
+                                (RADIO_PCNF0_S1INCL_Automatic << RADIO_PCNF0_S1INCL_Pos) | \
                                 (NRF_S0LEN << RADIO_PCNF0_S0LEN_Pos) | \
                                 (NRF_S1LEN_BITS << RADIO_PCNF0_S1LEN_Pos)
 #define NRF_PCNF0_1M            (NRF_PCNF0) | \
